@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CUSATInfo Chatbot</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      transition: background-color 0.3s ease, color 0.3s ease;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    body.light-mode {
+      background-color: #f5f5f5;
+      color: #333;
+    }
+
+    body.dark-mode {
+      background-color: #1a1a1a;
+      color: #e0e0e0;
+    }
+
+    .header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 30px;
+      z-index: 1000;
+      backdrop-filter: blur(10px);
+      height: 50px;
+    }
+
+    body.light-mode .header {
+      background-color: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 1px 5px rgba(0, 0, 0, 0.05);
+    }
+
+    body.dark-mode .header {
+      background-color: rgba(26, 26, 26, 0.9);
+      box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
+    }
+
+    .chatbot-title {
+      font-size: 18px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .theme-toggle {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 2px 10px rgba(102, 126, 234, 0.3);
+    }
+
+    .theme-toggle:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+
+    .theme-toggle:active {
+      transform: translateY(0);
+    }
+
+    .icon {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* Center the chatbot */
+    df-messenger {
+      z-index: 999;
+      --df-messenger-bot-message: #e0e0e0;
+      --df-messenger-button-titlebar-color: #667eea;
+      --df-messenger-chat-background-color: #ffffff;
+      --df-messenger-send-icon: #667eea;
+      --df-messenger-user-message: #667eea;
+      --df-messenger-font-color: #333;
+      --df-messenger-chat-border-radius: 16px;
+      --df-messenger-chat-box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    }
+
+    body.dark-mode df-messenger {
+      --df-messenger-bot-message: #2d2d2d;
+      --df-messenger-button-titlebar-color: #764ba2;
+      --df-messenger-chat-background-color: #1a1a1a;
+      --df-messenger-send-icon: #764ba2;
+      --df-messenger-user-message: #764ba2;
+      --df-messenger-font-color: #e0e0e0;
+      --df-messenger-chat-box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Center the chat window itself */
+    .chat-centered {
+      position: fixed;
+      top: 55%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 500px;
+      height: 750px;
+      max-width: 95vw;
+      max-height: calc(100vh - 55px);
+    }
+
+    @media (max-width: 768px) {
+      .header {
+        padding: 15px 20px;
+      }
+
+      .chatbot-title {
+        font-size: 18px;
+      }
+
+      .theme-toggle {
+        padding: 10px 18px;
+        font-size: 12px;
+      }
+
+      df-messenger {
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        transform: none;
+        border-radius: 0;
+      }
+    }
+  </style>
+</head>
+<body class="light-mode">
+
+  <div class="header">
+    <div class="chatbot-title">
+      <span>🎓</span>
+      <span>CUSATInfo</span>
+    </div>
+    <button class="theme-toggle" id="themeToggle">
+      <svg class="icon" fill="currentColor" viewBox="0 0 20 20">
+        <path id="themeIcon" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/>
+      </svg>
+      <span id="themeText">Dark Mode</span>
+    </button>
+  </div>
+
+  <!-- Dialogflow Messenger -->
+  <script src="https://www.gstatic.com/dialogflow-console/fast/messenger/bootstrap.js?v=1"></script>
+
+  <df-messenger
+    chat-title="CUSATInfo"
+    agent-id="98552e70-5f2b-44b4-b3a1-d228d8782fe9"
+    language-code="en"
+    intent="WELCOME">
+  </df-messenger>
+
+  <script>
+    // Theme Toggle Functionality
+    const themeToggle = document.getElementById('themeToggle');
+    const themeText = document.getElementById('themeText');
+    const themeIcon = document.getElementById('themeIcon');
+    const body = document.body;
+
+    const sunPath = "M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z";
+    const moonPath = "M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z";
+
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    body.className = savedTheme + '-mode';
+    updateThemeButton(savedTheme);
+
+    themeToggle.addEventListener('click', () => {
+      const currentTheme = body.classList.contains('light-mode') ? 'light' : 'dark';
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      
+      body.className = newTheme + '-mode';
+      localStorage.setItem('theme', newTheme);
+      updateThemeButton(newTheme);
+    });
+
+    function updateThemeButton(theme) {
+      if (theme === 'dark') {
+        themeText.textContent = 'Light Mode';
+        themeIcon.setAttribute('d', moonPath);
+      } else {
+        themeText.textContent = 'Dark Mode';
+        themeIcon.setAttribute('d', sunPath);
+      }
+    }
+
+    // Auto-open Chatbot and Center the chat window
+    window.addEventListener('load', function () {
+      setTimeout(() => {
+        const dfMessenger = document.querySelector('df-messenger');
+        
+        if (dfMessenger) {
+          dfMessenger.setAttribute('expand', 'true');
+          
+          let attempts = 0;
+          const maxAttempts = 60;
+
+          const openInterval = setInterval(() => {
+            attempts++;
+
+            if (!dfMessenger.shadowRoot) {
+              if (attempts >= maxAttempts) clearInterval(openInterval);
+              return;
+            }
+
+            const shadow = dfMessenger.shadowRoot;
+            const chatEl = shadow.querySelector('df-messenger-chat');
+
+            if (chatEl) {
+              // Center the chat window
+              if (chatEl.shadowRoot) {
+                const chatShadow = chatEl.shadowRoot;
+                
+                // Find the chat wrapper and center it
+                const chatWrapper = chatShadow.querySelector('.chat-wrapper') || 
+                                    chatShadow.querySelector('[class*="wrapper"]');
+                
+                if (chatWrapper) {
+                  chatWrapper.classList.add('chat-centered');
+                  chatWrapper.style.position = 'fixed';
+                  chatWrapper.style.top = '55%';
+                  chatWrapper.style.left = '50%';
+                  chatWrapper.style.transform = 'translate(-50%, -50%)';
+                  chatWrapper.style.width = '500px';
+                  chatWrapper.style.height = '750px';
+                  chatWrapper.style.maxWidth = '95vw';
+                  chatWrapper.style.maxHeight = 'calc(100vh - 55px)';
+                  chatWrapper.style.zIndex = '999';
+                }
+
+                // Click the open button
+                const openBtn = chatShadow.querySelector('button[aria-label*="Open"]') ||
+                                chatShadow.querySelector('button[class*="chat-bubble"]');
+                
+                if (openBtn && openBtn.offsetParent !== null) {
+                  openBtn.click();
+                  console.log('✅ Chatbot opened and centered');
+                  clearInterval(openInterval);
+                }
+
+                // Check if already open and center it
+                if (chatWrapper && chatWrapper.style.display !== 'none' && !chatWrapper.classList.contains('hidden')) {
+                  console.log('✅ Chatbot is open and centered');
+                  clearInterval(openInterval);
+                }
+              }
+            }
+
+            if (attempts >= maxAttempts) {
+              clearInterval(openInterval);
+            }
+          }, 200);
+        }
+      }, 1000);
+    });
+  </script>
+
+</body>
+</html>
