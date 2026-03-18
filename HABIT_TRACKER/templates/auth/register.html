@@ -1,54 +1,110 @@
-{% extends "base.html" %} {% block title %}Login{% endblock %} {% block content
-%}
-<div class="container d-flex justify-content-center align-items-center vh-100">
-  <div class="card shadow p-4" style="width: 100%; max-width: 450px">
-    <h3 class="text-center mb-4">Register</h3>
+{% extends "base.html" %}
+{% block title %}Sign Up{% endblock %}
 
-    <form method="POST" action="{{ url_for('register') }}">
-      <div class="mb-3">
-        <label class="form-label">Username</label>
-        <input type="text" class="form-control" name="username" required />
+{% block content %}
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="auth-header">
+      <h2>Create Account ✨</h2>
+      <p>Start your habit-building journey</p>
+    </div>
+
+    <form method="POST" action="{{ url_for('register') }}" id="registerForm">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input
+          type="text"
+          id="username"
+          name="username"
+          class="form-input"
+          placeholder="Your display name"
+          required
+          autocomplete="username"
+          minlength="2"
+          maxlength="50"
+        >
       </div>
 
-      <div class="mb-3">
-        <label class="form-label">Email</label>
-        <input type="email" class="form-control" name="email" required />
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          class="form-input"
+          placeholder="you@example.com"
+          required
+          autocomplete="email"
+        >
       </div>
 
-      <div class="mb-3">
-        <label class="form-label">Password</label>
+      <div class="form-group">
+        <label for="password">Password</label>
         <input
           type="password"
-          class="form-control"
+          id="password"
           name="password"
+          class="form-input"
+          placeholder="Min 8 characters"
           required
+          autocomplete="new-password"
           minlength="8"
-          pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}"
-          title="At least 8 chars, 1 uppercase, 1 lowercase, 1 number 1 special character"
-        />
+        >
+        <div class="form-hint">At least 8 characters with uppercase, lowercase & number</div>
       </div>
 
-      <div class="mb-3">
-        <label class="form-label">Confirm Password</label>
+      <div class="form-group">
+        <label for="confirm_password">Confirm Password</label>
         <input
           type="password"
-          class="form-control"
+          id="confirm_password"
           name="confirm_password"
+          class="form-input"
+          placeholder="Repeat your password"
           required
-        />
-      </div>
-      <div class="form-text">
-        Password must be at least 8 characters, include uppercase, lowercase,
-        number and special character.
+          autocomplete="new-password"
+        >
       </div>
 
-      <button type="submit" class="btn btn-success w-100 mt-3">Register</button>
+      <button type="submit" class="btn-submit" id="registerBtn">
+        Create Account 🚀
+      </button>
     </form>
 
-    <p class="text-center mt-3">
-      Already have an account?
-      <a href="{{ url_for('login') }}">Login</a>
-    </p>
+    <div class="auth-footer">
+      Already have an account? <a href="{{ url_for('login') }}">Sign in</a>
+    </div>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const form = document.getElementById('registerForm');
+  const password = document.getElementById('password');
+  const confirm = document.getElementById('confirm_password');
+
+  form.addEventListener('submit', function(e) {
+    if (password.value !== confirm.value) {
+      e.preventDefault();
+      confirm.style.borderColor = '#e17055';
+      confirm.style.boxShadow = '0 0 0 3px rgba(225, 112, 85, 0.3)';
+      return;
+    }
+    const btn = document.getElementById('registerBtn');
+    btn.textContent = 'Creating account...';
+    btn.style.opacity = '0.7';
+    btn.style.pointerEvents = 'none';
+  });
+
+  confirm.addEventListener('input', function() {
+    if (password.value === confirm.value) {
+      confirm.style.borderColor = '#00b894';
+      confirm.style.boxShadow = '0 0 0 3px rgba(0, 184, 148, 0.2)';
+    } else {
+      confirm.style.borderColor = '#e17055';
+      confirm.style.boxShadow = '0 0 0 3px rgba(225, 112, 85, 0.2)';
+    }
+  });
+</script>
 {% endblock %}

@@ -1,87 +1,242 @@
-from flask import Flask, flash, render_template, request, redirect, url_for, session
-from models import db, User
+from flask import Flask, flash, render_template, request, redirect, url_for, session, jsonify
+from models import db, User, Habit, HabitCompletion
+from datetime import date, timedelta
+from functools import wraps
+import os
 
 app = Flask(__name__)
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///userHD.db"
-app.config["SECRET_KEY"] = "super-secret-key"
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///habitu.db"
+app.config["SECRET_KEY"] = os.urandom(24).hex()
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db.init_app(app)
 
 with app.app_context():
     db.create_all()
 
-# ---------------- HOME ----------------
+
+# ── Login-required decorator ──────────────────────────────────
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "user_id" not in session:
+            flash("Please log in first.", "warning")
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def get_current_user():
+    return db.session.get(User, session.get("user_id"))
+
+
+# ── HOME ──────────────────────────────────────────────────────
 @app.route("/")
 def home():
+    if "user_id" in session:
+        return redirect(url_for("dashboard"))
     return render_template("index.html")
 
-# ---------------- REGISTER ----------------
+
+# ── REGISTER ──────────────────────────────────────────────────
 @app.route("/auth/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
-        username = request.form["username"]
-        email = request.form["email"]
-        password = request.form["password"]
-        confirm = request.form["confirm_password"]
+        username = request.form.get("username", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        confirm = request.form.get("confirm_password", "")
+
+        if not username or not email or not password:
+            flash("All fields are required.", "error")
+            return redirect(url_for("register"))
 
         if password != confirm:
-            return "Passwords do not match"
+            flash("Passwords do not match.", "error")
+            return redirect(url_for("register"))
+
+        if len(password) < 8:
+            flash("Password must be at least 8 characters.", "error")
+            return redirect(url_for("register"))
 
         if User.query.filter_by(email=email).first():
-            return "User already exists"
+            flash("An account with this email already exists.", "error")
+            return redirect(url_for("register"))
 
         user = User(username=username, email=email)
         user.set_password(password)
-
         db.session.add(user)
         db.session.commit()
 
-        session["user_id"] = user.id   # AUTO LOGIN
+        session["user_id"] = user.id
+        flash(f"Welcome to Habitu, {username}! 🎉", "success")
         return redirect(url_for("dashboard"))
 
     return render_template("auth/register.html")
 
-# ---------------- LOGIN ----------------
 
-from werkzeug.security import check_password_hash
-
-@app.route('/auth/login', methods=['GET', 'POST'])
+# ── LOGIN ─────────────────────────────────────────────────────
+@app.route("/auth/login", methods=["GET", "POST"])
 def login():
-    if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
 
         user = User.query.filter_by(email=email).first()
 
-        if not user:
-            flash("User not found")
-            return redirect(url_for('login'))
+        if not user or not user.check_password(password):
+            flash("Invalid email or password.", "error")
+            return redirect(url_for("login"))
 
-        if user.check_password(password):
-            session["user_id"] = user.id
-            flash("Login successful")
-            return redirect(url_for('dashboard'))
+        session["user_id"] = user.id
+        flash(f"Welcome back, {user.username}!", "success")
+        return redirect(url_for("dashboard"))
 
-        flash("Wrong password")
-        return redirect(url_for('login'))
+    return render_template("auth/login.html")
 
-    return render_template('auth/login.html')
 
-# ---------------- DASHBOARD ----------------
-
+# ── DASHBOARD ─────────────────────────────────────────────────
 @app.route("/dashboard")
+@login_required
 def dashboard():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
+    user = get_current_user()
+    habits = Habit.query.filter_by(user_id=user.id).order_by(Habit.created_at.desc()).all()
 
-    user = User.query.get(session["user_id"])
-    return render_template("dashboard.html", user=user)
+    total_habits = len(habits)
+    completed_today = sum(1 for h in habits if h.completed_today)
+    completion_pct = int((completed_today / total_habits * 100)) if total_habits > 0 else 0
+    best_streak = max((h.streak for h in habits), default=0)
 
-# ---------------- LOGOUT ----------------
+    # Weekly data for chart (last 7 days)
+    weekly_data = []
+    today = date.today()
+    for i in range(6, -1, -1):
+        d = today - timedelta(days=i)
+        count = sum(
+            1 for h in habits
+            if any(c.completed_date == d for c in h.completions)
+        )
+        weekly_data.append({
+            "day": d.strftime("%a"),
+            "date": d.isoformat(),
+            "count": count
+        })
+
+    return render_template(
+        "dashboard.html",
+        user=user,
+        habits=habits,
+        total_habits=total_habits,
+        completed_today=completed_today,
+        completion_pct=completion_pct,
+        best_streak=best_streak,
+        weekly_data=weekly_data,
+        today=today
+    )
+
+
+# ── ADD HABIT ─────────────────────────────────────────────────
+@app.route("/habit/add", methods=["POST"])
+@login_required
+def add_habit():
+    name = request.form.get("name", "").strip()
+    icon = request.form.get("icon", "✨")
+    color = request.form.get("color", "#6c5ce7")
+    habit_type = request.form.get("habit_type", "boolean")
+    target_value = request.form.get("target_value", 0, type=float)
+    unit = request.form.get("unit", "").strip()
+
+    if not name:
+        flash("Habit name is required.", "error")
+        return redirect(url_for("dashboard"))
+
+    if habit_type == "countable" and target_value <= 0:
+        flash("Target value must be greater than 0.", "error")
+        return redirect(url_for("dashboard"))
+
+    habit = Habit(
+        user_id=session["user_id"],
+        name=name,
+        icon=icon,
+        color=color,
+        habit_type=habit_type,
+        target_value=target_value,
+        unit=unit
+    )
+    db.session.add(habit)
+    db.session.commit()
+
+    flash(f'Habit "{name}" created! 🚀', "success")
+    return redirect(url_for("dashboard"))
+
+
+# ── TOGGLE HABIT COMPLETION ───────────────────────────────────
+@app.route("/habit/<int:habit_id>/toggle", methods=["POST"])
+@login_required
+def toggle_habit(habit_id):
+    habit = Habit.query.get_or_404(habit_id)
+    if habit.user_id != session["user_id"]:
+        flash("Unauthorized.", "error")
+        return redirect(url_for("dashboard"))
+
+    today = date.today()
+    existing = HabitCompletion.query.filter_by(
+        habit_id=habit_id, completed_date=today
+    ).first()
+
+    if habit.habit_type == "countable":
+        # For countable habits, accept a value from the form
+        value = request.form.get("value", 0, type=float)
+        if existing:
+            existing.value = value
+            db.session.commit()
+        else:
+            completion = HabitCompletion(habit_id=habit_id, completed_date=today, value=value)
+            db.session.add(completion)
+            db.session.commit()
+
+        if value >= habit.target_value:
+            flash(f'🎉 Target reached! "{habit.name}" — {value} {habit.unit}!', "success")
+        else:
+            flash(f'Logged {value} {habit.unit} for "{habit.name}".', "info")
+    else:
+        # Boolean toggle
+        if existing:
+            db.session.delete(existing)
+            db.session.commit()
+            flash(f'Unmarked "{habit.name}" for today.', "info")
+        else:
+            completion = HabitCompletion(habit_id=habit_id, completed_date=today)
+            db.session.add(completion)
+            db.session.commit()
+            flash(f'Great job! "{habit.name}" completed! 🔥', "success")
+
+    return redirect(url_for("dashboard"))
+
+
+# ── DELETE HABIT ──────────────────────────────────────────────
+@app.route("/habit/<int:habit_id>/delete", methods=["POST"])
+@login_required
+def delete_habit(habit_id):
+    habit = Habit.query.get_or_404(habit_id)
+    if habit.user_id != session["user_id"]:
+        flash("Unauthorized.", "error")
+        return redirect(url_for("dashboard"))
+
+    name = habit.name
+    db.session.delete(habit)
+    db.session.commit()
+    flash(f'Habit "{name}" deleted.', "info")
+    return redirect(url_for("dashboard"))
+
+
+# ── LOGOUT ────────────────────────────────────────────────────
 @app.route("/logout")
 def logout():
-    session.pop("user_id", None)
+    session.clear()
+    flash("You've been logged out.", "info")
     return redirect(url_for("home"))
+
 
 if __name__ == "__main__":
     app.run(debug=True)

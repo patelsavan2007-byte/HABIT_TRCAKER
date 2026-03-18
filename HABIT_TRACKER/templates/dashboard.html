@@ -2,8 +2,385 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<div class="container text-center mt-5">
-  <h2>Welcome {{ user.username }}</h2>
-  <a href="{{ url_for('logout') }}" class="btn btn-danger mt-3">Logout</a>
+<div class="dashboard">
+
+  <!-- ═══ GREETING ═══ -->
+  <div class="dash-header">
+    <h1 class="dash-greeting">
+      <span class="wave">👋</span> Hey, {{ user.username }}!
+    </h1>
+    <p class="dash-date">{{ today.strftime('%A, %B %d, %Y') }}</p>
+  </div>
+
+  <!-- ═══ STATS GRID ═══ -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon stat-icon-purple">📋</div>
+      <div class="stat-value">{{ total_habits }}</div>
+      <div class="stat-label">Total Habits</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon stat-icon-green">✅</div>
+      <div class="stat-value">{{ completed_today }}</div>
+      <div class="stat-label">Done Today</div>
+      <!-- Progress ring -->
+      <div class="progress-ring-container">
+        <svg viewBox="0 0 44 44" width="55" height="55">
+          <defs>
+            <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style="stop-color:#6c5ce7"/>
+              <stop offset="100%" style="stop-color:#00b894"/>
+            </linearGradient>
+          </defs>
+          <circle class="progress-ring-bg" cx="22" cy="22" r="18"/>
+          <circle
+            class="progress-ring-fill"
+            cx="22" cy="22" r="18"
+            stroke-dasharray="{{ 113.1 }}"
+            stroke-dashoffset="{{ 113.1 - (113.1 * completion_pct / 100) }}"
+          />
+        </svg>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon stat-icon-orange">🔥</div>
+      <div class="stat-value">{{ best_streak }}</div>
+      <div class="stat-label">Best Streak</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon stat-icon-pink">📈</div>
+      <div class="stat-value">{{ completion_pct }}%</div>
+      <div class="stat-label">Today's Progress</div>
+    </div>
+  </div>
+
+  <!-- ═══ WEEKLY CHART ═══ -->
+  <div class="weekly-chart">
+    <h3>📊 This Week</h3>
+    <div class="chart-bars">
+      {% for day in weekly_data %}
+        <div class="chart-bar-wrapper">
+          <span class="chart-bar-count">{{ day.count }}</span>
+          {% if total_habits > 0 %}
+            <div
+              class="chart-bar {% if day.count == 0 %}chart-bar-empty{% endif %}"
+              style="height: {{ (day.count / total_habits * 100) if total_habits > 0 else 0 }}%;"
+            ></div>
+          {% else %}
+            <div class="chart-bar chart-bar-empty" style="height: 4px;"></div>
+          {% endif %}
+          <span class="chart-day">{{ day.day }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- ═══ HABITS LIST ═══ -->
+  <div class="habits-section">
+    <div class="section-header">
+      <h2 class="section-title">🎯 My Habits</h2>
+      <button class="btn-add-habit" onclick="openModal()" id="addHabitBtn">
+        ＋ New Habit
+      </button>
+    </div>
+
+    {% if habits %}
+      <div class="habits-list">
+        {% for habit in habits %}
+          <div class="habit-card {% if habit.completed_today %}completed{% endif %}" style="--habit-color: {{ habit.color }};">
+
+            {% if habit.habit_type == 'countable' %}
+              {# ── COUNTABLE HABIT ── #}
+              <div class="habit-check">
+                <div class="countable-ring" title="{{ habit.progress_pct }}% complete">
+                  <svg viewBox="0 0 44 44" width="44" height="44">
+                    <circle cx="22" cy="22" r="18" fill="none" stroke="rgba(108,92,231,0.15)" stroke-width="3.5"/>
+                    <circle cx="22" cy="22" r="18" fill="none"
+                      stroke="{{ habit.color }}"
+                      stroke-width="3.5" stroke-linecap="round"
+                      stroke-dasharray="113.1"
+                      stroke-dashoffset="{{ 113.1 - (113.1 * habit.progress_pct / 100) }}"
+                      style="transform:rotate(-90deg);transform-origin:center;transition:stroke-dashoffset 0.8s ease;"
+                    />
+                  </svg>
+                  <span class="countable-ring-pct">{{ habit.progress_pct }}%</span>
+                </div>
+              </div>
+
+              <div class="habit-info">
+                <div class="habit-name">
+                  <span>{{ habit.icon }}</span>
+                  <span>{{ habit.name }}</span>
+                  <span class="habit-type-badge">📐 Measurable</span>
+                </div>
+                <div class="habit-meta">
+                  <span class="habit-progress-text">
+                    {{ habit.today_value }} / {{ habit.target_value }} {{ habit.unit }}
+                  </span>
+                  {% if habit.streak > 0 %}
+                    <span class="habit-streak">🔥 {{ habit.streak }} day{{ 's' if habit.streak != 1 }}</span>
+                  {% endif %}
+                </div>
+                {# Progress bar #}
+                <div class="habit-progress-bar">
+                  <div class="habit-progress-fill" style="width: {{ habit.progress_pct }}%; background: {{ habit.color }};"></div>
+                </div>
+              </div>
+
+              <div class="habit-actions" style="gap: 0.4rem;">
+                <form method="POST" action="{{ url_for('toggle_habit', habit_id=habit.id) }}" class="countable-form" style="margin:0; display:flex; align-items:center; gap:0.3rem;">
+                  <input type="number" name="value" step="0.1" min="0"
+                    class="countable-input" placeholder="0"
+                    value="{{ habit.today_value if habit.today_value else '' }}"
+                  >
+                  <button type="submit" class="btn-log" title="Log value">📝</button>
+                </form>
+                <form method="POST" action="{{ url_for('delete_habit', habit_id=habit.id) }}" style="margin:0;"
+                      onsubmit="return confirm('Delete this habit?')">
+                  <button type="submit" class="btn-icon" title="Delete">🗑️</button>
+                </form>
+              </div>
+
+            {% else %}
+              {# ── BOOLEAN HABIT ── #}
+              <div class="habit-check">
+                <form method="POST" action="{{ url_for('toggle_habit', habit_id=habit.id) }}" style="margin:0;">
+                  <button type="submit" class="check-btn" title="{% if habit.completed_today %}Unmark{% else %}Complete{% endif %}">
+                    {% if habit.completed_today %}✓{% endif %}
+                  </button>
+                </form>
+              </div>
+
+              <div class="habit-info">
+                <div class="habit-name">
+                  <span>{{ habit.icon }}</span>
+                  <span>{{ habit.name }}</span>
+                </div>
+                <div class="habit-meta">
+                  {% if habit.streak > 0 %}
+                    <span class="habit-streak">🔥 {{ habit.streak }} day{{ 's' if habit.streak != 1 }}</span>
+                  {% endif %}
+                  <span>{{ habit.total_completions }} total</span>
+                </div>
+              </div>
+
+              <div class="habit-actions">
+                <form method="POST" action="{{ url_for('delete_habit', habit_id=habit.id) }}" style="margin:0;"
+                      onsubmit="return confirm('Delete this habit?')">
+                  <button type="submit" class="btn-icon" title="Delete">🗑️</button>
+                </form>
+              </div>
+            {% endif %}
+
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-icon">🌱</div>
+        <h3>No habits yet</h3>
+        <p>Click "New Habit" to start building your daily routine!</p>
+      </div>
+    {% endif %}
+  </div>
 </div>
+
+<!-- ═══ ADD HABIT MODAL ═══ -->
+<div class="modal-overlay" id="habitModal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 class="modal-title">✨ New Habit</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+
+    <form method="POST" action="{{ url_for('add_habit') }}" id="addHabitForm">
+      <div class="form-group">
+        <label for="habitName">Habit Name</label>
+        <input
+          type="text"
+          id="habitName"
+          name="name"
+          class="form-input"
+          placeholder="e.g. Morning Meditation"
+          required
+          maxlength="100"
+          autocomplete="off"
+        >
+      </div>
+
+      {# ── Habit Type Toggle ── #}
+      <div class="form-group">
+        <label>Habit Type</label>
+        <div class="type-toggle">
+          <button type="button" class="type-btn active" data-type="boolean" onclick="selectType(this)">
+            ✅ Checkbox
+          </button>
+          <button type="button" class="type-btn" data-type="countable" onclick="selectType(this)">
+            📐 Measurable
+          </button>
+        </div>
+        <input type="hidden" name="habit_type" id="selectedType" value="boolean">
+      </div>
+
+      {# ── Countable fields (hidden by default) ── #}
+      <div class="countable-fields" id="countableFields" style="display:none;">
+        <div style="display:flex; gap:0.8rem;">
+          <div class="form-group" style="flex:1;">
+            <label for="targetValue">Target Value</label>
+            <input
+              type="number"
+              id="targetValue"
+              name="target_value"
+              class="form-input"
+              placeholder="e.g. 5"
+              step="0.1"
+              min="0.1"
+            >
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label for="habitUnit">Unit</label>
+            <input
+              type="text"
+              id="habitUnit"
+              name="unit"
+              class="form-input"
+              placeholder="e.g. km, glasses, pages"
+              maxlength="30"
+            >
+          </div>
+        </div>
+        <div class="form-hint" style="margin-top:-0.5rem; margin-bottom:0.8rem;">
+          ℹ️ Set a daily target to track. Examples: 5 km, 8 glasses, 30 pages
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Choose an Icon</label>
+        <div class="emoji-grid">
+          {% set emojis = ['💪', '📖', '🧘', '🏃', '💧', '🍎', '😴', '✍️', '🎵', '🧹', '💻', '🌅'] %}
+          {% for emoji in emojis %}
+            <button type="button" class="emoji-option {% if loop.first %}selected{% endif %}"
+                    data-emoji="{{ emoji }}" onclick="selectEmoji(this)">
+              {{ emoji }}
+            </button>
+          {% endfor %}
+        </div>
+        <input type="hidden" name="icon" id="selectedIcon" value="💪">
+      </div>
+
+      <div class="form-group">
+        <label>Color Tag</label>
+        <div class="color-grid">
+          {% set colors = ['#6c5ce7', '#a29bfe', '#00b894', '#00cec9', '#fdcb6e', '#e17055', '#fd79a8', '#74b9ff'] %}
+          {% for color in colors %}
+            <button type="button" class="color-option {% if loop.first %}selected{% endif %}"
+                    style="background: {{ color }};" data-color="{{ color }}"
+                    onclick="selectColor(this)">
+            </button>
+          {% endfor %}
+        </div>
+        <input type="hidden" name="color" id="selectedColor" value="#6c5ce7">
+      </div>
+
+      <button type="submit" class="btn-submit">Add Habit 🎯</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // ── Modal controls ──────────────────────────
+  function openModal() {
+    document.getElementById('habitModal').classList.add('active');
+    document.getElementById('habitName').focus();
+  }
+
+  function closeModal() {
+    document.getElementById('habitModal').classList.remove('active');
+  }
+
+  // Close on overlay click
+  document.getElementById('habitModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+
+  // Close on Escape
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeModal();
+  });
+
+  // ── Habit type toggle ───────────────────────
+  function selectType(el) {
+    document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    const type = el.dataset.type;
+    document.getElementById('selectedType').value = type;
+    const fields = document.getElementById('countableFields');
+    const targetInput = document.getElementById('targetValue');
+    const unitInput = document.getElementById('habitUnit');
+
+    if (type === 'countable') {
+      fields.style.display = 'block';
+      fields.style.animation = 'fadeInUp 0.3s ease-out';
+      targetInput.required = true;
+      unitInput.required = true;
+    } else {
+      fields.style.display = 'none';
+      targetInput.required = false;
+      unitInput.required = false;
+    }
+  }
+
+  // ── Emoji picker ────────────────────────────
+  function selectEmoji(el) {
+    document.querySelectorAll('.emoji-option').forEach(e => e.classList.remove('selected'));
+    el.classList.add('selected');
+    document.getElementById('selectedIcon').value = el.dataset.emoji;
+  }
+
+  // ── Color picker ────────────────────────────
+  function selectColor(el) {
+    document.querySelectorAll('.color-option').forEach(e => e.classList.remove('selected'));
+    el.classList.add('selected');
+    document.getElementById('selectedColor').value = el.dataset.color;
+  }
+
+  // ── Confetti on habit completion ─────────────
+  document.querySelectorAll('.habit-card.completed .check-btn').forEach(btn => {
+    const rect = btn.getBoundingClientRect();
+    for (let i = 0; i < 6; i++) {
+      setTimeout(() => {
+        const confetti = document.createElement('div');
+        confetti.className = 'confetti';
+        confetti.style.left = (rect.left + rect.width / 2 + (Math.random() - 0.5) * 60) + 'px';
+        confetti.style.top = (rect.top + rect.height / 2) + 'px';
+        confetti.style.background = ['#6c5ce7', '#00b894', '#fdcb6e', '#fd79a8', '#74b9ff'][Math.floor(Math.random() * 5)];
+        confetti.style.width = (Math.random() * 8 + 4) + 'px';
+        confetti.style.height = (Math.random() * 8 + 4) + 'px';
+        document.body.appendChild(confetti);
+        setTimeout(() => confetti.remove(), 1500);
+      }, i * 50);
+    }
+  });
+
+  // ── Animate stats numbers ───────────────────
+  document.querySelectorAll('.stat-value').forEach(el => {
+    const target = parseInt(el.textContent) || 0;
+    if (target === 0 || el.textContent.includes('%')) return;
+    let current = 0;
+    const increment = Math.max(1, Math.floor(target / 20));
+    const timer = setInterval(() => {
+      current += increment;
+      if (current >= target) {
+        current = target;
+        clearInterval(timer);
+      }
+      el.textContent = current;
+    }, 40);
+  });
+</script>
 {% endblock %}

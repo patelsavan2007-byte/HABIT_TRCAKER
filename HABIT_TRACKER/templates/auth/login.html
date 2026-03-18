@@ -1,28 +1,61 @@
-{% extends "base.html" %} {% block title %}Login{% endblock %} {% block content
-%}
-  <div class="container d-flex justify-content-center align-items-center vh-100">
-    <div class="card shadow p-4" style="width: 100%; max-width: 400px;">
-      <h3 class="text-center mb-4">Login</h3>
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
 
- <form method="POST" action="{{ url_for('login') }}">
-  <div class="mb-3">
-    <label class="form-label">Email</label>
-    <input type="email" class="form-control" name="email" required>
-  </div>
+{% block content %}
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="auth-header">
+      <h2>Welcome Back 👋</h2>
+      <p>Sign in to continue your habits</p>
+    </div>
 
-  <div class="mb-3">
-    <label class="form-label">Password</label>
-    <input type="password" class="form-control" name="password" required>
-  </div>
+    <form method="POST" action="{{ url_for('login') }}" id="loginForm">
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          class="form-input"
+          placeholder="you@example.com"
+          required
+          autocomplete="email"
+        >
+      </div>
 
-  <button type="submit" class="btn btn-primary w-100">Login</button>
-</form>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          class="form-input"
+          placeholder="Enter your password"
+          required
+          autocomplete="current-password"
+        >
+      </div>
 
+      <button type="submit" class="btn-submit" id="loginBtn">
+        Sign In →
+      </button>
+    </form>
 
-      <p class="text-center mt-3">
-        Don’t have an account?
-        <a href="{{ url_for('register') }}">Register</a>
-      </p>
+    <div class="auth-footer">
+      Don't have an account? <a href="{{ url_for('register') }}">Create one</a>
     </div>
   </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Button loading state
+  document.getElementById('loginForm').addEventListener('submit', function() {
+    const btn = document.getElementById('loginBtn');
+    btn.textContent = 'Signing in...';
+    btn.style.opacity = '0.7';
+    btn.style.pointerEvents = 'none';
+  });
+</script>
 {% endblock %}
